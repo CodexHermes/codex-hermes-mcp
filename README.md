@@ -4,17 +4,17 @@ MCP server for the [Codex Hermes](https://codex-hermes.vercel.app) skill registr
 
 Built with Node.js, TypeScript, and the official [`@modelcontextprotocol/sdk`](https://www.npmjs.com/package/@modelcontextprotocol/sdk).
 
-The server supports two modes:
+The server supports:
 
-- **stdio MCP** — for local Hermes Agent, Cursor, and Claude Desktop
-- **HTTP** — for Render and other cloud deployments
+- **HTTP (default)** — Express REST API + MCP Streamable HTTP at `POST /mcp` for Render and remote agents
+- **stdio MCP** — for local Hermes Agent, Cursor, and Claude Desktop (`MCP_STDIO=1`)
 
-## Tools (stdio MCP)
+## MCP tools
 
 | Tool | Description |
 | --- | --- |
 | `codex_search_skills` | Search active skills by query and/or category |
-| `codex_get_skill` | Get full metadata for one skill by `slug` or `id` |
+| `codex_get_skill` | Get full metadata for one active skill by `slug` or `id` |
 | `codex_get_skill_content` | Fetch markdown content from IPFS with gateway fallbacks |
 | `codex_record_invocation` | Insert an invocation row and increment `usage_count` when possible |
 
@@ -49,29 +49,45 @@ MCP_SERVER_NAME=codex-hermes-mcp
 
 **Security:** Never commit `.env` or expose `SUPABASE_SERVICE_ROLE_KEY` to clients. The service role key is used only inside this server process.
 
-3. Build:
+3. Build and run:
 
 ```bash
 npm run build
-```
-
-## Local stdio MCP usage
-
-When `RENDER` and `PORT` are **not** set, the server starts in stdio MCP mode for local agents.
-
-```bash
 npm start
 ```
 
-For development with auto-reload:
+For development:
 
 ```bash
 npm run dev
 ```
 
-### Cursor / Claude Desktop
+## Hermes Agent config (remote MCP)
 
-Add to your MCP client config (paths adjusted for your machine):
+Point Hermes at the deployed MCP HTTP endpoint:
+
+```yaml
+mcp_servers:
+  codex_hermes:
+    url: "https://codex-hermes-mcp.onrender.com/mcp"
+    enabled: true
+```
+
+Replace the URL with your Render service URL if different.
+
+## Local stdio MCP usage
+
+Set `MCP_STDIO=1` to run as a local stdio MCP server:
+
+```bash
+# PowerShell
+$env:MCP_STDIO="1"; npm start
+
+# Bash
+MCP_STDIO=1 npm start
+```
+
+### Cursor / Claude Desktop
 
 ```json
 {
@@ -80,6 +96,7 @@ Add to your MCP client config (paths adjusted for your machine):
       "command": "node",
       "args": ["C:/path/to/codex-hermes-mcp/dist/index.js"],
       "env": {
+        "MCP_STDIO": "1",
         "SUPABASE_URL": "https://your-project.supabase.co",
         "SUPABASE_SERVICE_ROLE_KEY": "your-service-role-key",
         "PINATA_GATEWAY": "https://gateway.pinata.cloud",
@@ -90,107 +107,49 @@ Add to your MCP client config (paths adjusted for your machine):
 }
 ```
 
-Or use `tsx` during development:
-
-```json
-{
-  "mcpServers": {
-    "codex-hermes": {
-      "command": "npx",
-      "args": ["tsx", "C:/path/to/codex-hermes-mcp/src/index.ts"],
-      "env": {
-        "SUPABASE_URL": "https://your-project.supabase.co",
-        "SUPABASE_SERVICE_ROLE_KEY": "your-service-role-key"
-      }
-    }
-  }
-}
-```
-
-### MCP Inspector
+### MCP Inspector (stdio)
 
 ```bash
-npx @modelcontextprotocol/inspector node dist/index.js
+MCP_STDIO=1 npx @modelcontextprotocol/inspector node dist/index.js
 ```
 
-## Local HTTP mode (optional)
+## HTTP endpoints
 
-To test the HTTP API locally, set `PORT`:
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/` | Plain-text status message |
+| `GET` | `/health` | JSON health check for Render |
+| `POST` | `/mcp` | MCP Streamable HTTP endpoint (stateless) |
+| `GET` | `/api/skills` | List active skills (`?query=` and `?category=` optional) |
+| `GET` | `/api/skills/:slug` | Get one active skill by slug |
+| `GET` | `/api/skills/:slug/content` | Fetch markdown from IPFS with fallbacks |
+
+Default port: `process.env.PORT || 3001`
+
+Examples:
 
 ```bash
-# PowerShell
-$env:PORT=3000; npm start
-
-# Bash
-PORT=3000 npm start
+curl http://localhost:3001/health
+curl http://localhost:3001/api/skills
+curl http://localhost:3001/api/skills/my-skill-slug
+curl http://localhost:3001/api/skills/my-skill-slug/content
 ```
 
-Then open:
-
-- `http://localhost:3000/health`
-- `http://localhost:3000/api/skills`
-
-## Render HTTP deployment
-
-Render sets `RENDER` and `PORT` automatically. When either is present, the server starts in **HTTP mode** and listens on `process.env.PORT` (default `3000`).
-
-### Render setup
+## Render deployment
 
 1. Create a **Web Service** on [Render](https://render.com) and connect this repository.
 2. Configure:
    - **Runtime:** Node
    - **Build command:** `npm install && npm run build`
    - **Start command:** `npm start`
-3. Add environment variables in the Render dashboard:
+3. Add environment variables:
    - `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `PINATA_GATEWAY` (optional)
    - `MCP_SERVER_NAME` (optional)
-4. Mark `SUPABASE_SERVICE_ROLE_KEY` as a secret.
+4. Set health check path to `/health`.
 
-Render injects `PORT` and `RENDER`, so the process stays alive as an HTTP server instead of exiting after stdio startup.
-
-### Health check
-
-Configure Render health checks to use:
-
-```
-GET /health
-```
-
-Example response:
-
-```json
-{
-  "status": "ok",
-  "service": "codex-hermes-mcp"
-}
-```
-
-Replace `your-service.onrender.com` with your Render URL:
-
-```
-https://your-service.onrender.com/health
-```
-
-### HTTP API endpoints
-
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/` | Plain-text status message |
-| `GET` | `/health` | JSON health check for Render |
-| `GET` | `/api/skills` | List active skills (`?query=` and `?category=` optional) |
-| `GET` | `/api/skills/:slug` | Get one skill by slug |
-| `GET` | `/api/skills/:slug/content` | Fetch markdown from IPFS with fallbacks |
-
-Examples:
-
-```bash
-curl https://your-service.onrender.com/health
-curl https://your-service.onrender.com/api/skills
-curl https://your-service.onrender.com/api/skills/my-skill-slug
-curl https://your-service.onrender.com/api/skills/my-skill-slug/content
-```
+Render injects `PORT` automatically. The server listens on that port and exposes MCP at `/mcp`.
 
 ## IPFS content fallback
 
@@ -204,9 +163,9 @@ curl https://your-service.onrender.com/api/skills/my-skill-slug/content
 
 | Script | Command | Purpose |
 | --- | --- | --- |
-| `dev` | `tsx watch src/index.ts` | Local stdio MCP development |
+| `dev` | `tsx src/index.ts` | Run HTTP server locally |
 | `build` | `tsc` | Compile TypeScript to `dist/` |
-| `start` | `node dist/index.js` | Run server (HTTP if `PORT`/`RENDER` set, else stdio) |
+| `start` | `node dist/index.js` | Run HTTP server (stdio if `MCP_STDIO=1`) |
 
 ## License
 

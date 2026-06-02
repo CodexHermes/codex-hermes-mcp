@@ -1,4 +1,5 @@
 import express from "express";
+import { registerMcpRoutes } from "./mcpHttp.js";
 import { getSkill } from "./tools/getSkill.js";
 import { getSkillContent } from "./tools/getSkillContent.js";
 import { searchSkills } from "./tools/searchSkills.js";
@@ -10,6 +11,8 @@ function getErrorMessage(error: unknown): string {
 export function startHttpServer(port: number): Promise<void> {
   const app = express();
 
+  app.use(express.json());
+
   app.get("/", (_req, res) => {
     res.type("text/plain").send("Codex Hermes MCP Server is running");
   });
@@ -20,6 +23,8 @@ export function startHttpServer(port: number): Promise<void> {
       service: "codex-hermes-mcp",
     });
   });
+
+  registerMcpRoutes(app);
 
   app.get("/api/skills", async (req, res) => {
     try {

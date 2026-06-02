@@ -77,7 +77,7 @@ export function createMcpServer(): McpServer {
     },
     async (args) => {
       try {
-        const result = await getSkill(args);
+        const result = await getSkill({ ...args, activeOnly: true });
         return jsonResult(result);
       } catch (error) {
         const message =
@@ -96,7 +96,7 @@ export function createMcpServer(): McpServer {
     },
     async (args) => {
       try {
-        const result = await getSkillContent(args);
+        const result = await getSkillContent({ ...args, activeOnly: true });
         return jsonResult(result);
       } catch (error) {
         const message =
