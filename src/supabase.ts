@@ -113,8 +113,9 @@ export async function fetchActiveSkills(options: {
 export async function fetchSkillByIdOrSlug(options: {
   id?: string;
   slug?: string;
+  activeOnly?: boolean;
 }): Promise<Skill | null> {
-  const { id, slug } = options;
+  const { id, slug, activeOnly } = options;
 
   if (!id && !slug) {
     throw new Error("Either id or slug must be provided.");
@@ -122,6 +123,10 @@ export async function fetchSkillByIdOrSlug(options: {
 
   const supabase = getSupabaseClient();
   let request = supabase.from("skills").select(FULL_SELECT);
+
+  if (activeOnly) {
+    request = request.eq("status", "active");
+  }
 
   if (id) {
     request = request.eq("id", id);

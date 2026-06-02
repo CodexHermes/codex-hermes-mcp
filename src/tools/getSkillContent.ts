@@ -83,7 +83,11 @@ async function fetchSkillMarkdown(skill: Skill): Promise<{
   );
 }
 
-export async function getSkillContent(args: { slug?: string; id?: string }) {
+export async function getSkillContent(args: {
+  slug?: string;
+  id?: string;
+  activeOnly?: boolean;
+}) {
   if (!args.slug && !args.id) {
     throw new Error("Either slug or id must be provided.");
   }
@@ -91,6 +95,7 @@ export async function getSkillContent(args: { slug?: string; id?: string }) {
   const skill = await fetchSkillByIdOrSlug({
     id: args.id,
     slug: args.slug,
+    activeOnly: args.activeOnly,
   });
 
   if (!skill) {
